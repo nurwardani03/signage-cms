@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "axios": "^1.21.1",
+    "lucide-react": "^1.72.0",
+    "react-router-dom": "^7.18.5",
+    "recharts": "^3.10.1",
+    "socket.io-client": "^4.8.4",
+    "tailwindcss": "^4.3.5"
+  }
+}

@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#090812">
+  <title>SignageCMS | Device Client</title>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; font-family: Inter, Arial, sans-serif; }
+    body { margin: 0; min-height: 100vh; background: #090812; color: #f8f7ff; }
+    button, select { font: inherit; }
+    button { border: 0; cursor: pointer; transition: .2s ease; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    .setup-screen {
+      min-height: 100vh; display: grid; place-items: center; padding: 24px;
+      background: radial-gradient(circle at 15% 10%,rgba(124,58,237,.18),transparent 32%),
+        radial-gradient(circle at 90% 90%,rgba(79,70,229,.12),transparent 30%),#090812;
+    }
+    .setup-card {
+      width: min(100%,720px); padding: 32px; border: 1px solid #302844;
+      border-radius: 22px; background: #191428; box-shadow: 0 24px 80px #0006;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+    .brand-mark {
+      width: 44px; height: 44px; display: grid; place-items: center;
+      border-radius: 13px; background: linear-gradient(135deg,#8b5cf6,#5b21b6);
+      font-size: 20px; font-weight: 800;
+    }
+    .brand-name { font-size: 16px; font-weight: 750; }
+    .brand-subtitle { margin-top: 3px; color: #9b93ad; font-size: 12px; }
+    h1 { margin: 0; font-size: clamp(25px,4vw,34px); }
+    .intro { margin: 10px 0 28px; color: #a9a1b9; line-height: 1.65; }
+    label { display: block; margin-bottom: 9px; color: #d8d1e6; font-size: 13px; font-weight: 650; }
+    select {
+      width: 100%; min-height: 50px; padding: 0 14px; border: 1px solid #493d60;
+      border-radius: 11px; color: white; background: #100d1b; outline: none;
+    }
+    select:focus { border-color: #9b7bea; }
+    .device-meta { margin-top: 10px; color: #9289a5; font-size: 12px; word-break: break-all; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .btn { min-height: 44px; padding: 0 18px; border-radius: 10px; color: white; font-weight: 700; }
+    .btn-primary { background: #7c3aed; }
+    .btn-primary:hover:not(:disabled) { background: #8b5cf6; }
+    .btn-secondary { background: #393149; }
+    .btn-secondary:hover:not(:disabled) { background: #4b405e; }
+    .btn-danger { background: #991b1b; }
+    .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+    .connection-row {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 24px;
+      padding: 14px 15px; border: 1px solid #332b43; border-radius: 12px;
+      background: #100d1b; color: #a9a1b9; font-size: 13px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #777; }
+    .dot.online { background: #22c55e; box-shadow: 0 0 12px #22c55e99; }
+    .status-text { color: #fbbf24; font-weight: 700; }
+    .status-text.online { color: #4ade80; }
+    .hint { margin-top: 18px; color: #827a92; font-size: 12px; line-height: 1.6; }
+    .error { margin-top: 14px; color: #fca5a5; font-size: 13px; min-height: 18px; }
+
+    .display-screen {
+      position: fixed; inset: 0; z-index: 10; display: none; align-items: center;
+      justify-content: center; overflow: hidden; background: #000;
+    }
+    .display-screen.active { display: flex; }
+    .display-screen img, .display-screen video, .display-screen iframe {
+      display: block; width: 100%; height: 100%; border: 0;
+      object-fit: contain; background: #000;
+    }
+    .standby {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 12px; padding: 30px; text-align: center; color: #777;
+    }
+    .standby-mark {
+      width: 58px; height: 58px; display: grid; place-items: center;
+      border-radius: 18px; border: 1px solid #24202e; color: #8b5cf6; font-size: 26px;
+    }
+    .standby strong { color: #aaa; font-size: 17px; }
+    .standby span { color: #686273; font-size: 12px; }
+
+    .display-toolbar {
+      position: fixed; z-index: 30; top: 18px; right: 18px; display: none;
+      align-items: center; gap: 10px; opacity: 0; transition: opacity .2s ease;
+    }
+    .display-toolbar:hover, .display-toolbar:focus-within { opacity: 1; }
+    .exit-display-btn {
+      display: flex; align-items: center; gap: 8px; padding: 11px 16px;
+      border: 1px solid #ffffff26; border-radius: 10px; background: #14141eD9;
+      color: white; font-size: 12px; font-weight: 700; backdrop-filter: blur(10px);
+    }
+    .exit-display-btn:hover { background: #393149; }
+    .display-status {
+      position: fixed; z-index: 20; bottom: 18px; left: 18px; display: none;
+      align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid #ffffff1f;
+      border-radius: 999px; background: #0a0a0f94; color: #d4d4d8; font-size: 11px;
+      opacity: .35; backdrop-filter: blur(10px); transition: opacity .2s;
+    }
+    .display-screen.active:hover ~ .display-status { opacity: 1; }
+    .display-status.visible { display: flex; }
+    .display-status.online .dot { background: #22c55e; }
+    .toast {
+      position: fixed; z-index: 50; left: 50%; bottom: 22px; transform: translateX(-50%);
+      padding: 10px 15px; border: 1px solid #393149; border-radius: 10px;
+      background: #191428; color: #e9e4f2; font-size: 12px;
+      opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .toast.show { opacity: 1; }
+
+    @media (max-width: 560px) {
+      .setup-screen { padding: 16px; }
+      .setup-card { padding: 23px 19px; }
+      .actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .actions .btn { padding: 0 10px; }
+      .actions .btn-primary { grid-column: 1 / -1; }
+      .display-toolbar { opacity: 1; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="setup-screen" id="setupScreen">
+    <section class="setup-card">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div>
+          <div class="brand-name">SignageCMS</div>
+          <div class="brand-subtitle">Device Client</div>
+        </div>
+      </div>
+
+      <h1>Device Setup</h1>
+      <p class="intro">
+        Select a registered device and connect it to start displaying assigned content.
+      </p>
+
+      <label for="deviceSelect">Select Device</label>
+      <select id="deviceSelect">
+        <option value="">Loading devices...</option>
+      </select>
+
+      <div class="device-meta" id="deviceMeta">
+        Choose a device from your SignageCMS dashboard.
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="connectBtn">Connect &amp; Display</button>
+        <button class="btn btn-secondary" id="disconnectBtn" disabled>Disconnect</button>
+        <button class="btn btn-danger" id="powerOffBtn" disabled>Power Off</button>
+        <button class="btn btn-secondary" id="refreshBtn">Refresh Devices</button>
+      </div>
+
+      <div class="connection-row">
+        <span class="dot" id="statusDot"></span>
+        <span>Connection:</span>
+        <span class="status-text" id="connectionStatus">Disconnected</span>
+        <span style="margin-left:auto" id="heartbeatStatus">Heartbeat: —</span>
+      </div>
+
+      <div class="error" id="errorMessage"></div>
+
+      <p class="hint">
+        Press <strong>Esc</strong> or <strong>Ctrl + Shift + E</strong> to return to setup.
+        You can also move your cursor to the top-right corner and select Exit Display.
+      </p>
+    </section>
+  </main>
+
+  <section class="display-screen" id="displayScreen">
+    <div class="standby">
+      <div class="standby-mark">S</div>
+      <strong>Waiting for content</strong>
+      <span>This display is ready to receive content.</span>
+    </div>
+  </section>
+
+  <div class="display-toolbar" id="displayToolbar">
+    <button class="exit-display-btn" id="exitDisplayBtn">
+      <span>↙</span> Exit Display
+    </button>
+  </div>
+
+  <div class="display-status" id="displayStatus">
+    <span class="dot"></span>
+    <span id="displayStatusText">OFFLINE</span>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+  // ==========================================
+  // CONFIGURATION
+  // ==========================================
+
+  const API_URL = "http://localhost:5000";
+  const HEARTBEAT_INTERVAL = 30000;
+  const DEVICE_STORAGE_KEY = "signagecms_device_id";
+
+  // ==========================================
+  // DOM ELEMENTS
+  // ==========================================
+
+  const setupScreen = document.getElementById("setupScreen");
+  const displayScreen = document.getElementById("displayScreen");
+  const displayToolbar = document.getElementById("displayToolbar");
+  const displayStatus = document.getElementById("displayStatus");
+  const displayStatusText = document.getElementById("displayStatusText");
+
+  const deviceSelect = document.getElementById("deviceSelect");
+  const deviceMeta = document.getElementById("deviceMeta");
+
+  const connectBtn = document.getElementById("connectBtn");
+  const disconnectBtn = document.getElementById("disconnectBtn");
+  const powerOffBtn = document.getElementById("powerOffBtn");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const exitDisplayBtn = document.getElementById("exitDisplayBtn");
+
+  const connectionStatus = document.getElementById("connectionStatus");
+  const statusDot = document.getElementById("statusDot");
+  const heartbeatStatus = document.getElementById("heartbeatStatus");
+
+  const errorMessage = document.getElementById("errorMessage");
+  const toast = document.getElementById("toast");
+
+  // ==========================================
+  // APPLICATION STATE
+  // ==========================================
+
+  let socket = null;
+  let heartbeatTimer = null;
+  let remoteReconnectTimer = null;
+  let playbackTimer = null;
+
+  let registered = false;
+  let displayMode = false;
+  let poweredOff = false;
+  let currentContent = null;
+  let currentPlaylist = null;
+  let playlistIndex = 0;
+  let playbackToken = 0;
+
+  // ==========================================
+  // HELPERS
+  // ==========================================
+
+  function showToast(message) {
+    toast.textContent = message;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2500);
+  }
+
+  function setConnectionStatus(status, online = false) {
+    connectionStatus.textContent = status;
+    connectionStatus.classList.toggle("online", online);
+    statusDot.classList.toggle("online", online);
+    displayStatus.classList.toggle("online", online);
+    displayStatusText.textContent = online ? "ONLINE" : "OFFLINE";
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+  }
+
+  function stopPlayback() {
+    playbackToken++;
+
+    if (playbackTimer) {
+      clearTimeout(playbackTimer);
+      playbackTimer = null;
+    }
+
+    currentPlaylist = null;
+    playlistIndex = 0;
+  }
+
+  function updateButtons() {
+    const hasDevice = Boolean(deviceSelect.value);
+    const socketConnected = Boolean(socket && socket.connected);
+
+    connectBtn.textContent = socketConnected ? "Resume Display" : "Connect & Display";
+    connectBtn.disabled = !hasDevice || Boolean(socket && !socketConnected);
+
+    disconnectBtn.disabled = !socket;
+    powerOffBtn.disabled = !socket && !displayMode;
+    deviceSelect.disabled = socketConnected;
+    refreshBtn.disabled = socketConnected;
+  }
+
+  // ==========================================
+  // LOAD DEVICES
+  // ==========================================
+
+  async function loadDevices() {
+    errorMessage.textContent = "";
+    refreshBtn.disabled = true;
+    deviceMeta.textContent = "Loading registered devices...";
+
+    try {
+      const response = await fetch(`${API_URL}/api/devices/public`);
+      const result = await response.json();
+
+      if (!response.ok || result.success === false) {
+        throw new Error(result.message || "Unable to load devices.");
+      }
+
+      const devices = Array.isArray(result.data) ? result.data : [];
+      const savedDeviceId = localStorage.getItem(DEVICE_STORAGE_KEY);
+      const previousValue = deviceSelect.value || savedDeviceId || "";
+
+      deviceSelect.replaceChildren();
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = devices.length ? "Select a device..." : "No devices found";
+      deviceSelect.appendChild(placeholder);
+
+      devices.forEach((device) => {
+        const option = document.createElement("option");
+        option.value = device.id;
+        option.textContent = `${device.nama} — ${device.lokasi || "No location"}`;
+        option.dataset.location = device.lokasi || "";
+        deviceSelect.appendChild(option);
+      });
+
+      if (devices.some((device) => device.id === previousValue)) {
+        deviceSelect.value = previousValue;
+      }
+
+      updateDeviceMeta();
+
+      if (!devices.length) {
+        deviceMeta.textContent =
+          "No devices found. Add a device from the admin dashboard.";
+      }
+
+      if (savedDeviceId && devices.some((device) => device.id === savedDeviceId)) {
+        deviceSelect.value = savedDeviceId;
+        updateDeviceMeta();
+
+        if (!socket && !poweredOff) {
+          connectOrResume(true);
+        }
+      } else if (savedDeviceId) {
+        localStorage.removeItem(DEVICE_STORAGE_KEY);
+      }
+    } catch (error) {
+      deviceSelect.replaceChildren();
+
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "Could not load devices";
+      deviceSelect.appendChild(option);
+
+      deviceMeta.textContent = "Make sure the SignageCMS backend is running.";
+      errorMessage.textContent = error.message;
+    } finally {
+      refreshBtn.disabled = false;
+      updateButtons();
+    }
+  }
+
+  function updateDeviceMeta() {
+    const option = deviceSelect.selectedOptions[0];
+
+    if (!deviceSelect.value || !option) {
+      deviceMeta.textContent = "Choose a device from your SignageCMS dashboard.";
+      return;
+    }
+
+    deviceMeta.textContent =
+      `${option.dataset.location || "Location not specified"} · Device ID: ${deviceSelect.value}`;
+  }
+
+  // ==========================================
+  // VIDEO AUDIO HELPERS
+  // ==========================================
+
+  function removeAudioPrompt() {
+    const existing = document.getElementById("audioEnablePrompt");
+    if (existing) existing.remove();
+  }
+
+  function showAudioPrompt(videoElement) {
+    removeAudioPrompt();
+
+    const button = document.createElement("button");
+    button.id = "audioEnablePrompt";
+    button.type = "button";
+    button.textContent = "▶ Aktifkan suara";
+    button.style.cssText = [
+      "position:fixed",
+      "z-index:40",
+      "left:50%",
+      "bottom:28px",
+      "transform:translateX(-50%)",
+      "padding:14px 22px",
+      "border:1px solid #ffffff40",
+      "border-radius:999px",
+      "background:#7c3aed",
+      "color:#fff",
+      "font-size:14px",
+      "font-weight:700",
+      "box-shadow:0 8px 30px #0008"
+    ].join(";");
+
+    button.addEventListener("click", async () => {
+      try {
+        videoElement.muted = false;
+        videoElement.defaultMuted = false;
+        videoElement.volume = 1;
+        await videoElement.play();
+        removeAudioPrompt();
+        showToast("Suara video aktif.");
+      } catch (error) {
+        showToast("Video belum bisa diputar. Periksa audio perangkat.");
+        console.error("Video playback failed:", error);
+      }
+    });
+
+    displayScreen.appendChild(button);
+  }
+
+  // ==========================================
+  // CONTENT RENDERING
+  // ==========================================
+
+  function showStandby(
+    title = "Waiting for content",
+    description = "This display is ready to receive content."
+  ) {
+    removeAudioPrompt();
+    displayScreen.replaceChildren();
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "standby";
+
+    const mark = document.createElement("div");
+    mark.className = "standby-mark";
+    mark.textContent = "S";
+
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+
+    const detail = document.createElement("span");
+    detail.textContent = description;
+
+    wrapper.append(mark, heading, detail);
+    displayScreen.appendChild(wrapper);
+  }
+
+  function renderContent(content, options = {}) {
+    removeAudioPrompt();
+    stopPlayback();
+    currentContent = content || null;
+
+    if (!content) {
+      showStandby(
+        "Waiting for content",
+        "No content has been assigned to this device yet."
+      );
+      return;
+    }
+
+    const mime = String(
+      content.payload?.mime_type || content.payload?.mimeType || ""
+    ).toLowerCase();
+
+    const type = String(content.tipe || "").toLowerCase();
+    const url = content.payload?.url || "";
+
+    if (!url) {
+      showStandby(
+        "Content unavailable",
+        "The media URL is missing. Please check the Media Library."
+      );
+      return;
+    }
+
+    displayScreen.replaceChildren();
+
+    let element;
+
+    if (mime.startsWith("video/") || type === "video") {
+      element = document.createElement("video");
+      element.src = url;
+      element.autoplay = true;
+      element.muted = false;
+      element.defaultMuted = false;
+      element.volume = 1;
+      element.loop = true;
+      element.playsInline = true;
+      element.controls = false;
+      element.setAttribute("playsinline", "");
+      element.setAttribute("webkit-playsinline", "");
+
+      element.addEventListener("canplay", async () => {
+        try {
+          await element.play();
+          removeAudioPrompt();
+        } catch (error) {
+          showAudioPrompt(element);
+        }
+      }, { once: true });
+    } else if (mime === "application/pdf" || type === "pdf") {
+      element = document.createElement("iframe");
+      element.src = url;
+      element.title = content.judul || "Signage content";
+    } else {
+      element = document.createElement("img");
+      element.src = url;
+      element.alt = content.judul || "Signage content";
+    }
+
+    element.addEventListener("error", () => {
+      showStandby(
+        "Unable to display content",
+        "The media could not be loaded. Check the file in Media Library."
+      );
+    });
+
+    displayScreen.appendChild(element);
+  }
+
+  // ==========================================
+  // PLAYLIST PLAYBACK
+  // ==========================================
+
+  function playPlaylistItem(token) {
+    if (token !== playbackToken || !currentPlaylist) return;
+    removeAudioPrompt();
+
+    const items = currentPlaylist.items || [];
+
+    if (!items.length) {
+      stopPlayback();
+      showStandby("Empty playlist", "This playlist has no media items.");
+      return;
+    }
+
+    if (playlistIndex >= items.length) {
+      playlistIndex = 0;
+    }
+
+    const item = items[playlistIndex];
+    const content = item.content || item.media || item;
+
+    if (!content?.payload?.url) {
+      showStandby(
+        "Playlist media unavailable",
+        "A media URL is missing. Please check the playlist."
+      );
+      scheduleNextPlaylistItem(token, item);
+      return;
+    }
+
+    currentContent = content;
+
+    const mime = String(
+      content.payload?.mime_type || content.payload?.mimeType || ""
+    ).toLowerCase();
+
+    const type = String(content.tipe || "").toLowerCase();
+    const url = content.payload.url;
+
+    displayScreen.replaceChildren();
+
+    let element;
+
+    if (mime.startsWith("video/") || type === "video") {
+      element = document.createElement("video");
+      element.src = url;
+      element.autoplay = true;
+      element.muted = false;
+      element.defaultMuted = false;
+      element.volume = 1;
+      element.loop = false;
+      element.playsInline = true;
+      element.controls = false;
+      element.setAttribute("playsinline", "");
+      element.setAttribute("webkit-playsinline", "");
+
+      element.addEventListener("canplay", async () => {
+        try {
+          await element.play();
+          removeAudioPrompt();
+        } catch (error) {
+          showAudioPrompt(element);
+        }
+      }, { once: true });
+    } else if (mime === "application/pdf" || type === "pdf") {
+      element = document.createElement("iframe");
+      element.src = url;
+      element.title = content.judul || "Signage content";
+    } else {
+      element = document.createElement("img");
+      element.src = url;
+      element.alt = content.judul || "Signage content";
+    }
+
+    element.addEventListener("error", () => {
+      if (token !== playbackToken) return;
+      showStandby(
+        "Unable to display playlist media",
+        content.judul || "Please check this media in Media Library."
+      );
+    });
+
+    displayScreen.appendChild(element);
+
+    scheduleNextPlaylistItem(token, item);
+  }
+
+  function scheduleNextPlaylistItem(token, item) {
+    const duration = Math.max(1, Number(item.duration) || 10);
+
+    playbackTimer = setTimeout(() => {
+      if (token !== playbackToken || !currentPlaylist) return;
+
+      playlistIndex += 1;
+
+      if (playlistIndex >= currentPlaylist.items.length) {
+        playlistIndex = 0;
+      }
+
+      playPlaylistItem(token);
+    }, duration * 1000);
+  }
+
+  function renderPlaylist(playlist) {
+    stopPlayback();
+    currentContent = null;
+
+    if (!playlist || !Array.isArray(playlist.items) || !playlist.items.length) {
+      showStandby("Playlist unavailable", "No playable media was received.");
+      return;
+    }
+
+    currentPlaylist = playlist;
+    playlistIndex = 0;
+
+    const token = playbackToken;
+    playPlaylistItem(token);
+
+    showToast(`Playlist started: ${playlist.nama || "Playlist"}`);
+  }
+
+  // ==========================================
+  // HEARTBEAT
+  // ==========================================
+
+  function startHeartbeat() {
+    stopHeartbeat();
+    sendHeartbeat();
+    heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL);
+  }
+
+  function sendHeartbeat() {
+    if (!socket?.connected || !registered) return;
+
+    socket.emit("device:heartbeat", (response) => {
+      heartbeatStatus.textContent = response?.success
+        ? `Heartbeat: ${new Date().toLocaleTimeString()}`
+        : "Heartbeat: failed";
+    });
+  }
+
+  // ==========================================
+  // DISPLAY MODE
+  // ==========================================
+
+  async function enterDisplayMode() {
+    displayMode = true;
+    setupScreen.style.display = "none";
+    displayScreen.classList.add("active");
+    displayToolbar.style.display = "flex";
+    displayStatus.classList.add("visible");
+    updateButtons();
+
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch (error) {
+      console.warn("Fullscreen request was not accepted:", error);
+    }
+  }
+
+  function returnToSetup(exitBrowserFullscreen = true) {
+    displayMode = false;
+    setupScreen.style.display = "grid";
+    displayScreen.classList.remove("active");
+    displayToolbar.style.display = "none";
+    displayStatus.classList.remove("visible");
+
+    if (
+      exitBrowserFullscreen &&
+      document.fullscreenElement &&
+      document.exitFullscreen
+    ) {
+      document.exitFullscreen().catch(() => {});
+    }
+
+    updateButtons();
+  }
+
+  // ==========================================
+  // REGISTER DEVICE
+  // ==========================================
+
+  function registerSelectedDevice() {
+    const deviceId = deviceSelect.value;
+    if (!deviceId || !socket?.connected) return;
+
+    socket.emit("device:register", { deviceId }, (response) => {
+      if (!response?.success) {
+        registered = false;
+        stopHeartbeat();
+        setConnectionStatus("Registration failed", false);
+        errorMessage.textContent =
+          response?.message || "Device registration failed.";
+        showToast("Device registration failed.");
+        updateButtons();
+        return;
+      }
+
+      registered = true;
+      poweredOff = false;
+
+      localStorage.setItem(DEVICE_STORAGE_KEY, deviceSelect.value);
+
+      setConnectionStatus("Connected", true);
+      errorMessage.textContent = "";
+      startHeartbeat();
+      showToast("Device connected successfully.");
+      updateButtons();
+    });
+  }
+
+  // ==========================================
+  // CONNECT OR RESUME
+  // ==========================================
+
+  function connectOrResume(isAutomatic = false) {
+    if (!deviceSelect.value) {
+      if (!isAutomatic) showToast("Please select a device first.");
+      return;
+    }
+
+    poweredOff = false;
+
+    if (socket && socket.connected && registered) {
+      enterDisplayMode();
+      if (!isAutomatic) showToast("Display resumed.");
+      return;
+    }
+
+    if (socket && !socket.connected) {
+      enterDisplayMode();
+      showStandby("Reconnecting device", "Waiting for the SignageCMS server...");
+      return;
+    }
+
+    enterDisplayMode();
+    showStandby("Connecting device", "Establishing a realtime connection...");
+
+    socket = io(API_URL, {
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+
+    socket.on("connect", registerSelectedDevice);
+
+    socket.on("connect_error", (error) => {
+      setConnectionStatus("Connection error", false);
+      showStandby(
+        "Connection unavailable",
+        "The client will retry connecting to the server."
+      );
+      console.error("Socket connection error:", error.message);
+    });
+
+    socket.on("device:reconnect", () => {
+      if (!socket || poweredOff) return;
+
+      registered = false;
+      stopHeartbeat();
+
+      setConnectionStatus("Remote reconnecting...", false);
+      heartbeatStatus.textContent = "Heartbeat: —";
+
+      showStandby(
+        "Reconnecting device",
+        "A reconnect command was received from the admin dashboard."
+      );
+
+      if (remoteReconnectTimer) clearTimeout(remoteReconnectTimer);
+
+      socket.disconnect();
+
+      remoteReconnectTimer = setTimeout(() => {
+        remoteReconnectTimer = null;
+        if (socket && !poweredOff) socket.connect();
+      }, 1000);
+    });
+
+    socket.on("device:content", (content) => {
+      poweredOff = false;
+      renderContent(content);
+    });
+
+    socket.on("device:playlist", (playlist) => {
+      poweredOff = false;
+      renderPlaylist(playlist);
+    });
+
+    socket.on("device:content:clear", () => {
+      stopPlayback();
+      currentContent = null;
+      renderContent(null);
+    });
+
+    socket.on("disconnect", (reason) => {
+      registered = false;
+      stopHeartbeat();
+
+      setConnectionStatus("Disconnected", false);
+      heartbeatStatus.textContent = "Heartbeat: —";
+
+      if (!currentContent && !currentPlaylist && displayMode && !poweredOff) {
+        showStandby(
+          "Connection lost",
+          "Waiting for the connection to be restored..."
+        );
+      }
+
+      updateButtons();
+      console.info("Socket disconnected:", reason);
+    });
+
+    updateButtons();
+  }
+
+  // ==========================================
+  // DISCONNECT
+  // ==========================================
+
+  function disconnectDevice() {
+    if (!socket) return;
+
+    if (remoteReconnectTimer) {
+      clearTimeout(remoteReconnectTimer);
+      remoteReconnectTimer = null;
+    }
+
+    stopHeartbeat();
+    registered = false;
+    localStorage.removeItem(DEVICE_STORAGE_KEY);
+
+    socket.disconnect();
+    socket = null;
+
+    setConnectionStatus("Disconnected", false);
+    heartbeatStatus.textContent = "Heartbeat: —";
+    showToast("Device disconnected.");
+    updateButtons();
+  }
+
+  // ==========================================
+  // POWER OFF
+  // ==========================================
+
+  function powerOffDevice() {
+    poweredOff = true;
+    currentContent = null;
+    stopPlayback();
+
+    if (remoteReconnectTimer) {
+      clearTimeout(remoteReconnectTimer);
+      remoteReconnectTimer = null;
+    }
+
+    localStorage.removeItem(DEVICE_STORAGE_KEY);
+
+    if (socket) {
+      stopHeartbeat();
+      registered = false;
+      socket.disconnect();
+      socket = null;
+    }
+
+    setConnectionStatus("Powered Off", false);
+    heartbeatStatus.textContent = "Heartbeat: —";
+
+    displayScreen.replaceChildren();
+    displayScreen.style.background = "#000";
+
+    enterDisplayMode();
+    showToast("Display powered off.");
+    updateButtons();
+  }
+
+  // ==========================================
+  // EVENT LISTENERS
+  // ==========================================
+
+  connectBtn.addEventListener("click", () => connectOrResume(false));
+  disconnectBtn.addEventListener("click", disconnectDevice);
+  powerOffBtn.addEventListener("click", powerOffDevice);
+  refreshBtn.addEventListener("click", loadDevices);
+
+  exitDisplayBtn.addEventListener("click", () => {
+    returnToSetup(true);
+    showToast("Device setup opened.");
+  });
+
+  deviceSelect.addEventListener("change", updateDeviceMeta);
+
+  document.addEventListener("keydown", (event) => {
+    if (
+      event.ctrlKey &&
+      event.shiftKey &&
+      event.key.toLowerCase() === "e"
+    ) {
+      event.preventDefault();
+      returnToSetup(true);
+      showToast("Device setup opened.");
+    }
+
+    if (event.key === "Escape" && displayMode) {
+      returnToSetup(false);
+      showToast("Device setup opened.");
+    }
+  });
+
+  document.addEventListener("fullscreenchange", () => {
+    if (displayMode && !document.fullscreenElement) {
+      returnToSetup(false);
+      showToast("Device setup opened.");
+    }
+  });
+
+  // ==========================================
+  // INITIALIZATION
+  // ==========================================
+
+  showStandby();
+  updateButtons();
+  loadDevices();
+</script>
+</body>
+</html>
